@@ -105,7 +105,7 @@ public class ReviewService {
 
 	private void addCountVisitRegion(User user, Place place, Review review) {
 		if(review.getReviewtype().equals("REVIEW_TYP_02")){
-			VisitRegionRequest visitRegionRequest = new VisitRegionRequest(place.getCity(), place.getCityDetail(), user.getUserId(), review.getReviewId());
+			VisitRegionRequest visitRegionRequest = new VisitRegionRequest(place.getCity(), place.getCityDetail(), user.getUserId(), review.getReviewId(),review.getCreatedAt().toLocalDate());
 			kafkaTemplate.send("add_visitRegion", visitRegionRequest);
 		}
 	}
@@ -170,7 +170,8 @@ public class ReviewService {
 		reviewRepository.findById(reviewId).ifPresent(review -> {
 			reviewRepository.delete(review);
 			if(review.getReviewtype().equals("REVIEW_TYP_02")) {
-				regionService.decrementCountVisitRegionForDB(review.getPlace().getCity(), review.getPlace().getCityDetail(), review.getUser(), review.getCreatedAt().toLocalDate());
+				VisitRegionRequest visitRegionRequest = new VisitRegionRequest(review.getPlace().getCity(), review.getPlace().getCityDetail(), review.getUser().getUserId(), review.getReviewId(),review.getCreatedAt().toLocalDate());
+				kafkaTemplate.send("delete_visitRegion", visitRegionRequest);
 			}
 		});
 	}
