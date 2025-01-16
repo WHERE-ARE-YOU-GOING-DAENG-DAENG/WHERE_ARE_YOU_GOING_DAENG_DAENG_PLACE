@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,7 @@ import com.daengdaeng_eodiga.project.place.entity.Place;
 import com.daengdaeng_eodiga.project.place.repository.PlaceScoreRepository;
 import com.daengdaeng_eodiga.project.place.service.PlaceService;
 
+import com.daengdaeng_eodiga.project.region.dto.VisitRegionRequest;
 import com.daengdaeng_eodiga.project.region.service.RegionService;
 import com.daengdaeng_eodiga.project.review.dto.ReviewDto;
 import com.daengdaeng_eodiga.project.review.dto.ReviewsResponse;
@@ -59,6 +61,7 @@ public class ReviewService {
 	private final CommonCodeService commonCodeService;
 	private final RegionService regionService;
 	private final PlaceScoreRepository placeScoreRepository;
+	private final KafkaTemplate<String, Object> kafkaTemplate;
 
 	public ReviewDto registerReview(ReviewRegisterRequest request, int userId) {
 
@@ -102,7 +105,8 @@ public class ReviewService {
 
 	private void addCountVisitRegion(User user, Place place, Review review) {
 		if(review.getReviewtype().equals("REVIEW_TYP_02")){
-			regionService.addCountVisitRegionForDB(place.getCity(), place.getCityDetail(), user);
+			VisitRegionRequest visitRegionRequest = new VisitRegionRequest(place.getCity(), place.getCityDetail(), user.getUserId(), review.getReviewId());
+			kafkaTemplate.send("add_visitRegion", visitRegionRequest);
 		}
 	}
 
@@ -171,6 +175,9 @@ public class ReviewService {
 		});
 	}
 
+	public void deleteReviewForTransaction(int reviewId) {
+		reviewRepository.deleteById(reviewId);
+	}
 	public ReviewsResponse fetchPlaceReviews(int placeId, int page, int size, OrderType orderType) {
 		Place place = placeService.findPlace(placeId);
 		Double scoreDouble = place.getPlaceScores().getScore();
