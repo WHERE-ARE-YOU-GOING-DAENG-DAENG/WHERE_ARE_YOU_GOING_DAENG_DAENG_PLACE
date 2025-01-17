@@ -1,4 +1,4 @@
-package com.daengdaeng_eodiga.project.user;
+package com.daengdaeng_eodiga.project.user.controller;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
