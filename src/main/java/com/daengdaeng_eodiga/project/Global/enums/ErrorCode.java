@@ -38,7 +38,8 @@ public enum ErrorCode {
 	USER_LAND_NOT_FOUND(HttpStatus.NOT_FOUND, "유저의 땅이 존재하지 않습니다."),
 	OWNER_HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "땅 주인 히스토리에 존재하지 않습니다."),
 	DUPLICATE_REVIEW_DAY(HttpStatus.CONFLICT,"오늘 등록된 리뷰가 있습니다."),
-	DUPLICATE_VISIT(HttpStatus.CONFLICT,"동일한 시간대에 등록된 방문 예정 일정이 있습니다.");
+	DUPLICATE_VISIT(HttpStatus.CONFLICT,"동일한 시간대에 등록된 방문 예정 일정이 있습니다."),
+	EVENT_TICKET_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "이벤트 티켓 발급 한도를 초과했습니다.");
 	private final HttpStatus errorCode;
 	private final String message;
 

@@ -8,6 +8,7 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @ToString
@@ -36,13 +37,18 @@ public class Event extends BaseEntity {
     private String placeAddress;
 
     @Column(name = "start_date")
-    private LocalDate  startDate;
+    private LocalDateTime startDate;
 
     @Column(name = "end_date")
-    private LocalDate endDate;
+    private LocalDateTime endDate;
+
+    private boolean active;
+
+    @Column(name = "participant_limit")
+    private int participantLimit;
 
     @Builder
-    public Event(String eventName, String eventImage, String eventDescription, String placeName, String placeAddress, LocalDate startDate, LocalDate endDate) {
+    public Event(String eventName, String eventImage, String eventDescription, String placeName, String placeAddress, LocalDateTime startDate, LocalDateTime endDate,Boolean active, int participantLimit) {
         this.eventName = eventName;
         this.eventImage = eventImage;
         this.eventDescription = eventDescription;
@@ -50,6 +56,8 @@ public class Event extends BaseEntity {
         this.placeAddress = placeAddress;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.active = active;
+        this.participantLimit = participantLimit;
     }
     public Event() {}
 }
