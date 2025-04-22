@@ -109,6 +109,7 @@ jwt:
     refresh: 1209600000
 
 server:
+  shutdown: graceful # 정상 종료 활성화
   tomcat:
     accesslog:
       enabled: true
@@ -119,7 +120,9 @@ server:
       pattern: "%{yyyy-MM-dd HH:mm:ss}t %s %r %{User-Agent}i %{Referer}i %a %b %D"
       max-days: 14
     basedir: .
-
+  spring:
+    lifecycle:
+      timeout-per-shutdown-phase: 30s # 각 종료 단계별 최대 대기 시간 (K8s의 terminationGracePeriodSeconds 보다 짧게 설정)
 eureka:
   instance:
     prefer-ip-address: true
@@ -129,8 +132,22 @@ eureka:
     serviceUrl:
       defaultZone: http://localhost:8761/eureka/
 
+
 management:
   endpoints:
     web:
       exposure:
-        include: "*"
+        include: health, prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState, db
+        liveness:
+          include: livenessState, diskSpace
+
