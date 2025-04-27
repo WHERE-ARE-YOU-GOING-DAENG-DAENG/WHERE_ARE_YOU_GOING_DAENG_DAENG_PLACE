@@ -11,7 +11,7 @@ env:
   K8S_REPO_OWNER: WHERE-ARE-YOU-GOING-DAENG-DAENG
   K8S_REPO_NAME: WHERE_ARE_YOU_GOING_DAENG_DAENG_K8S
   K8S_REPO_BRANCH: main
-  K8S_OVERLAY_PATH: overlays/production/main-service
+  K8S_OVERLAY_PATH: k8s-manifests/overlays/production/main-service
   BASE_IMAGE_NAME: main-service
 
 jobs:
