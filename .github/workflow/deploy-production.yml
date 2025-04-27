@@ -1,0 +1,115 @@
+name: Deploy Place Service to Production
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: app_repo_ecr
+  SERVICE_NAME: main-service
+  K8S_REPO_OWNER: WHERE-ARE-YOU-GOING-DAENG-DAENG
+  K8S_REPO_NAME: WHERE_ARE_YOU_GOING_DAENG_DAENG_K8S
+  K8S_REPO_BRANCH: main
+  K8S_OVERLAY_PATH: overlays/production/main-service
+  BASE_IMAGE_NAME: main-service
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    # AWS OIDC 인증을 위한 권한 설정 (IAM 역할 및 Trust 설정 필요)
+    permissions:
+      id-token: write # OIDC 토큰 요청용
+      contents: read  # 레포지토리 코드 체크아웃용
+
+    steps:
+      - name: Checkout App Repository (Main Service)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build Main Service with Gradle
+        run: ./gradlew build -x test # 테스트 실행 시: ./gradlew bui
+
+      # 4. AWS 자격 증명 설정 (OIDC 방식 추천)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # GitHub Actions 워크플로우를 위해 생성한 IAM 역할 ARN
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+
+      # 5. Amazon ECR 로그인
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Determine Image Tag and ECR URI for Main Service
+        id: image-info
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          IMAGE_TAG="${{ env.SERVICE_NAME }}-${COMMIT_SHA}"
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          FULL_ECR_IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+          echo "FULL_ECR_IMAGE_URI=${FULL_ECR_IMAGE_URI}" >> $GITHUB_ENV
+          echo "Using Image URI: ${FULL_ECR_IMAGE_URI}"
+
+      # 7. 도커 이미지 빌드 및 ECR 푸시 (서비스별 태그로 공통 레포에 푸시)
+      - name: Build, Tag, and Push Main Service Docker image to Amazon ECR
+        run: |
+          docker build -t ${{ env.FULL_ECR_IMAGE_URI }} .
+          echo "Pushing image to ECR: ${{ env.FULL_ECR_IMAGE_URI }}"
+          docker push ${{ env.FULL_ECR_IMAGE_URI }}
+
+      # 8. Kustomize CLI 설치
+      - name: Install Kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+          kustomize version
+
+      # 9. K8S 매니페스트 레포지토리 체크아웃 (별도 경로에)
+      - name: Checkout K8s Manifests Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.K8S_REPO_OWNER }}/${{ env.K8S_REPO_NAME }}
+          path: k8s-manifests
+          ref: ${{ env.K8S_REPO_BRANCH }}
+          token: ${{ secrets.K8S_REPO_PAT }}
+
+      # 10. Kustomize 이미지 정보 업데이트 및 K8S 레포에 커밋/푸시
+      - name: Update Kustomization and Push to K8s Repo for Main Service
+        working-directory: ./k8s-manifests # K8S 레포 체크아웃 경로로 이동
+        run: |
+          # 자동 커밋을 위한 Git 사용자 설정
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions-bot@users.noreply.github.com"
+
+          # Kustomize 이미지 설정 업데이트
+          cd ${{ env.K8S_OVERLAY_PATH }}
+          echo "Running kustomize edit set image for path: $(pwd)"
+          # kustomize edit set image <base 식별자>=<전체 ECR 경로 + 서비스별 태그>
+          kustomize edit set image ${{ env.BASE_IMAGE_NAME }}=${{ env.FULL_ECR_IMAGE_URI }}
+          echo "Kustomization updated."
+          cd - # 원래 k8s-manifests 루트 디렉토리로 복귀 (중요)
+
+          # 변경사항 확인 후 커밋 및 푸시
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "Changes detected in kustomization. Committing and pushing..."
+            git add ${{ env.K8S_OVERLAY_PATH }}/kustomization.yaml
+            # 커밋 메시지에 앱/서비스 커밋 정보 포함시키면 추적 용이
+            git commit -m "Update ${{ env.SERVICE_NAME }} prod image to tag ${{ env.IMAGE_TAG }} [skip ci]"
+            git push origin ${{ env.K8S_REPO_BRANCH }}
+            echo "Pushed changes to K8s repo branch: ${{ env.K8S_REPO_BRANCH }}"
+          else
+            echo "No changes detected in kustomization. Nothing to commit."
+          fi
